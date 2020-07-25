@@ -7,49 +7,35 @@ void printMAC(uint8_t *mac){
     }
 }
 
-void printIP(uint32_t ip){
-    for(int i=0; i<4; i++){
-        printf("%d",( ip >>(24-i*8) ) & 0xFF );
-        if(i<3)printf(".");
-    }
-}
-
-void printTCPDATA(uint8_t* tcpdata,int tcpdata_len){
-    if(tcpdata_len > 16) tcpdata_len = 16;
-    for(int i=0; i<tcpdata_len ;i++) printf("%c", tcpdata[i]);
-}
-
 void parsing(const u_char* packet){
     static int pktcnt=1;
-    struct ethhdr *eth = (struct ethhdr *) packet;
+    struct ether_header *eth = (struct ether_header *) packet;
 
-    if ( ntohs(eth->h_proto) == ETH_P_IP ){
-        struct  iphdr *iph = (struct  iphdr *)( (uint8_t *)eth + ETH_LEN );
+    if ( ntohs(eth->ether_type) == ETHERTYPE_IP ){
+        struct ip *iph = (struct ip *)( (uint8_t *)eth + ETHER_HDR_LEN );
 
-        if ( iph->protocol == IP_P_TCP ){
-            struct tcphdr *tcph = (struct tcphdr *)( (uint8_t *)iph + (iph->ihl << 2) );
+        if ( iph->ip_p == IPPROTO_TCP ){
+            struct tcphdr *tcph = (struct tcphdr *)( (uint8_t *)iph + (iph->ip_hl << 2) );
 
             uint8_t *tcpdata = (uint8_t *)tcph + (tcph->th_off << 2);
-            int tcpdata_len = ntohs(iph->tot_len) - (iph->ihl << 2) - (tcph->th_off << 2);
+            int tcpdata_len = ntohs(iph->ip_len) - (iph->ip_hl << 2) - (tcph->th_off << 2);
 
             printf("-------%02d TCP packet--------", pktcnt++);
 
             printf("\nEth dst  : ");
-            printMAC(eth->h_dest);
+            printMAC(eth->ether_dhost);
             printf("\nEth src  : ");
-            printMAC(eth->h_source);
+            printMAC(eth->ether_shost);
 
-            printf("\n IP src  : ");
-            printIP(ntohl(iph->saddr));
-            printf("\n IP dst  : ");
-            printIP(ntohl(iph->daddr));
+            printf("\n IP src  : %s", inet_ntoa(iph->ip_src));
+            printf("\n IP dst  : %s", inet_ntoa(iph->ip_dst));
 
             printf("\nTCP sport: %d", ntohs(tcph->th_sport));
             printf("\nTCP dport: %d", ntohs(tcph->th_dport));
 
             printf("\nTCP data : ");
             if ( tcpdata_len == 0 ) printf("0");
-            else printTCPDATA(tcpdata, tcpdata_len);
+            else for(int i=0; i<min(tcpdata_len,16) ;i++) printf("%c", tcpdata[i]);
 
             printf("\n----------------------------\n");
         }
